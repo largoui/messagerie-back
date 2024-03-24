@@ -1,48 +1,68 @@
-var express = require('express'); //import de la bibliothèque Express
-var app = express(); //instanciation d'une application Express
+const express = require('express');
+const multer = require('multer');
 
-// Pour s'assurer que l'on peut faire des appels AJAX au serveur
+const app = express();
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
 app.use(function(req, res, next) {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
 
-// Ici faut faire faire quelque chose à notre app...
-// On va mettre les "routes"  == les requêtes HTTP acceptéés par notre application.
+app.use('/upload', express.static('upload'));
 
-const allMsgs = ["Hello World", "foobar", "CentraleSupelec Forever"]
-// let compteur = 0;
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    cb(null, 'upload/');
+  },
+  filename: function(req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + '.' + file.originalname.split('.').pop());
+  }
+});
+
+const upload = multer({ storage: storage });
+
+
+const users = {}
+const allMsgs = []
 
 app.get("/", function(req, res) {
   res.send("Hello")
 });
 
-app.get('/msg/post/:msg', function(req, res) {
-  if (req.params.msg !== " ") {
-    console.log(req.params.msg);
-    // compteur += 1;
-    // allMsgs[compteur] = unescape(req.params.msg);
-    allMsgs.push(req.params.msg)
+app.post('/msg/post/', upload.single('img'), function(req, res) {
+  const user = req.body.user;
+  const msg = req.body.msg;
+  const img = req.file ? req.file.path : undefined;
+  if (user && users[user] && (msg || img)) {
+    console.log(req.body);
+    allMsgs.push({ user: user, msg: msg, img: img });
     res.json({ "code": 1, "id": allMsgs.length - 1 });
+  } else if (user && users[user]) {
+    res.json({ "code": 0 });
   } else {
-    res.json({ "code": 0 })
+    res.json({ "code": -1 });
   }
-
 });
 
 app.get('/msg/get/:id', function(req, res) {
   const id = +req.params.id;
-  const msg = allMsgs[id];
+  const { user, msg, img } = allMsgs[id];
   if (Number.isInteger(id) && msg !== undefined) {
-    res.json({ "code": 1, "msg": msg });
+    res.json({ "code": 1, "msg": { user: users[user], img: img, msg: msg } });
   } else {
     res.json({ "code": 0 });
   }
 });
 
 app.get('/msg/getAll', function(req, res) {
-  res.json({ "code": 1, "msgs": allMsgs });
+  const msgs = allMsgs.map(msg => {
+    return { user: users[msg.user], msg: msg.msg, img: msg.img }
+  });
+  res.json({ "code": 1, "msgs": msgs });
 });
 
 app.get('/msg/nber', function(req, res) {
@@ -60,23 +80,21 @@ app.get('/msg/del/:id', function(req, res) {
   }
 });
 
-// app.get('/cpt/query', function(req, res) {
-//   res.json({ "compteur": compteur })
-// });
-
-// app.get('/cpt/inc', function(req, res) {
-//   const increment = +req.query.v;
-//   if (Object.keys(req.query).length === 0) {
-//     compteur += 1;
-//     res.json({ "code": 0 });
-//   } else if (Number.isInteger(increment)) {
-//     compteur += increment;
-//     res.json({ "code": 0 })
-//   } else {
-//     res.json({ "code": -1 })
-//   }
-// });
-
+app.get('/user/:id/:name', function(req, res) {
+  const id = req.params.id;
+  const username = req.params.name;
+  if (id && username && username.trim() !== "") {
+    console.log(id, username);
+    users[id] = username.trim();
+    setTimeout(() => {
+      res.json({ "code": 1, "id": id, "user": username });
+    }, 200);
+  } else {
+    res.status(400).send({
+      message: 'Failed to update username'
+    });
+  }
+});
 
 app.listen(8080); //commence à accepter les requêtes
 console.log("App listening on port 8080...");
