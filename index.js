@@ -85,9 +85,13 @@ app.get('/user/:id/:name', function(req, res) {
   const username = req.params.name;
   if (id && username && username.trim() !== "") {
     console.log(id, username);
-    users[id] = username.trim();
+    if (users[id] === undefined) {
+      users[id] = { name: username.trim(), color: "#" + Math.floor(Math.random() * 16777215).toString(16) }
+    } else {
+      users[id].name = username.trim();
+    }
     setTimeout(() => {
-      res.json({ "code": 1, "id": id, "user": username });
+      res.json({ "code": 1, "id": id, "user": username.trim(), color: users[id].color });
     }, 200);
   } else {
     res.status(400).send({
